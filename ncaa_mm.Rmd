@@ -1,0 +1,104 @@
+NCAA March Madness
+========================================================
+
+
+
+```{r}
+library(Metrics)
+setwd('C:/Users/Peter/Dropbox/kaggle/NCAA/') 
+
+regResults <- read.csv("regular_season_compact_results.csv", header = TRUE, stringsAsFactors = FALSE)
+
+regDetResults <- read.csv("regular_season_detailed_results.csv", header = TRUE, stringsAsFactors = FALSE)
+
+seasons <- read.csv("seasons.csv", header = TRUE, stringsAsFactors = FALSE)
+
+teams <- read.csv("teams.csv", header = TRUE, stringsAsFactors = FALSE)
+tourneyRes <- read.csv("tourney_compact_results.csv", header = TRUE, stringsAsFactors = FALSE)
+
+tourneyDetRes <- read.csv("tourney_detailed_results.csv", header = TRUE, stringsAsFactors = FALSE)
+
+tourneySeeds <- read.csv("tourney_seeds.csv", header = TRUE, stringsAsFactors = FALSE)
+
+tourneySlots <- read.csv("tourney_slots.csv", header = TRUE, stringsAsFactors = FALSE)
+
+spread <- read.csv("pointspreads.csv", header = TRUE, stringsAsFactors = FALSE)
+```
+
+```{r logistic regression on spreads}
+
+spread <- na.omit(spread)
+
+spread$win <- ifelse(spread$lineavg>=0,1,0)
+table(win)
+summary(spread$linesage)
+spread.logit <- glm(win ~ line-1, data = spread, family = "binomial")
+summary(spread.logit)
+pred <- predict(spread.logit,type="response")
+pred <- predict(spread.logit, newdata=line2prob,type="response")
+line2prob$pred <- pred
+summary(pred)
+```
+
+
+http://www.bettingtalk.com/win-probability-percentage-point-spread-nfl-nba/
+
+http://www.teamrankings.com/ncb/odds-history/results/
+
+```{r  lines --> probabilities}
+
+line2prob <- data.frame(line=seq(0, 13, by=0.5), prob=c(.50,.50,.517, .535, .554,.574,.597,.621, .641, .662, .682, .702, .720, .737, .758, .778, .798, .817, .838, .859, .881, .903, .924, .945, .967, .989, 1))
+
+tr.line2prob <- data.frame(line=seq(0,20,by=0.5),prob=c(.5,.5,.515,.515,.556,.58,.629,.633,.636,.661,.683,.698,.705,.739,.751,.774,.777,.819,.820,.855,.849,.846,.877,.864,.874,.885,.90,.921,.917,.946,.941,.962,.973,.957,.955,.963,.975,.98,.984,.969,.987))
+line2prob[line2prob$line==1.5,]
+lineProbs <- function(line){
+  pr <- 1/(1+10^{-1*line/15})
+  return(pr)
+}
+
+line2prob$fun <- lineProbs(seq(0,13,by=0.5))
+tr.line2prob$fun <- lineProbs(seq(0,20,by=0.5))
+
+actual <- c(1,0)
+predicted <- c(0,1)
+logLoss(actual,predicted)
+```
+
+
+
+```{r submission}
+submissionFile <- function(season) {
+    playoffTeams <- sort(tourneySeeds$team[which(tourneySeeds$season == season)])
+    numTeams <- length(playoffTeams)
+    matrix <- matrix(nrow = numTeams, ncol = numTeams)
+    for (i in c(1:numTeams)) {
+        for (j in c(1:numTeams)) {
+            matrix[i, j] <- paste(season, "_", playoffTeams[i], "_", playoffTeams[j], 
+                sep = "")
+        }
+    }
+    keep <- upper.tri(matrix, diag = F)
+    idcol <- vector()
+    for (i in c(1:numTeams)) {
+        for (j in c(1:numTeams)) {
+            if (keep[i, j] == T) {
+                idcol <- c(idcol, matrix[i, j])
+            }
+        }
+    }
+    form <- data.frame(Matchup = idcol, Win = NA)
+    return(form)
+}
+sub_file <- data.frame()
+for (i in LETTERS[19:19]) {
+    sub_file <- rbind(sub_file, submissionFile(i))
+    # 14-18th letters: N to R, 19th is S
+}
+
+
+colnames(sub_file) <- c("id", "pred")
+sub_file$pred <- 0.5
+write.csv(sub_file, file = "sub1.csv", row.names = FALSE)
+
+```
+
